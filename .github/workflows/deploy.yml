@@ -60,7 +60,13 @@ jobs:
         id: terraform_init
         uses: mikefarah/yq@master
         with:
-          cmd: yq eval '.terraform.ssm-parameters[] | select(.type=="init").name' ./cloudopsworks-ci.yaml
+          cmd: yq '.terraform.ssm-parameters[] | select(.type=="init").name' ./cloudopsworks-ci.yaml
+
+      - name: Get region from terraform.tfvars
+        id: aws_region
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -p props '.aws_region' terraform.tfvars | tr -d \"
 
       - name: Download TF init file
         id: tf_backend
@@ -68,6 +74,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ steps.aws_region.outputs.result }}
         run: |
           ssm_param="${{ steps.terraform_init.outputs.result }}"
           mkdir .deploy
