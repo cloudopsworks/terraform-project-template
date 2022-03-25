@@ -4,6 +4,8 @@
 #
 name: Terraform Project Deploy
 on:
+  workflow_dispatch:
+    
   push:
     branches:
       - master
