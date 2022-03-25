@@ -60,7 +60,7 @@ jobs:
         id: terraform_init
         uses: mikefarah/yq@master
         with:
-          cmd: yq eval ".terraform.ssm-parameters[] | select(.type==\"init\").name" ./cloudopsworks-ci.yaml
+          cmd: yq eval '.terraform.ssm-parameters[] | select(.type=="init").name' ./cloudopsworks-ci.yaml
 
       - name: Download TF init file
         id: tf_backend
