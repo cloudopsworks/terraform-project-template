@@ -1,0 +1,10 @@
+##
+# (c) 2021 - Cloud Ops Works LLC - https://cloudops.works/
+#            On GitHub: https://github.com/cloudopsworks
+#            Distributed Under Apache v2.0 License
+#
+# CI/CD configurations
+terraform:
+  ssm-parameters:
+    - name: terraform_remote_state_config
+      type: init
