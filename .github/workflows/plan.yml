@@ -47,6 +47,8 @@ jobs:
           wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - | tar xz && mv ${BINARY} /usr/local/bin/yq
 
       - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.7
 
       - name: Check if automatic
         id: check_automatic
