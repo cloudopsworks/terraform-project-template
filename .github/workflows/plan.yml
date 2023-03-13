@@ -21,6 +21,8 @@ permissions:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    outputs:
+      auto_approve: ${{ steps.check_automatic.outputs.autoapprove }}
     steps:
       - uses: actions/labeler@v4
         with:
@@ -160,49 +162,6 @@ jobs:
               body: output
             })
 
-      - uses: actions/github-script@v6
-        if: ${{ steps.check_automatic.outputs.autoapprove == 'true' }}
-        with:
-          github-token: ${{secrets.BOT_TOKEN}}
-          script: |
-            github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['approved', 'automatic-environment']
-            })
-      
-      - name: Read reviewers from file
-        id: reviewers
-        if: ${{ steps.check_automatic.outputs.autoapprove != 'true' }}
-        run: |
-          count=$(yq e '.requiredReviewers' OWNERS)
-          reviewers_as_json=$(yq e -j -I=0 '.reviewers' OWNERS)
-          echo "count=$count" >> $GITHUB_OUTPUT
-          echo "as_json=$reviewers_as_json" >> $GITHUB_OUTPUT
-
-      - uses: actions/github-script@v6
-        if: ${{ steps.check_automatic.outputs.autoapprove != 'true' }}
-        with:
-          github-token: ${{secrets.BOT_TOKEN}}
-          script: |
-            const reviewers_json=JSON.parse('${{ steps.reviewers.outputs.as_json }}')
-            const reviewers_count=${{ steps.reviewers.outputs.count }}
-
-            github.rest.pulls.requestReviewers({
-              pull_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              reviewers: reviewers_json
-            })
-
-            github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['approval-required','review-required']
-            })
-
       - name: Hard Fail plan not success
         run: |
           result_fmt="${{ steps.fmt.outcome }}"
@@ -215,3 +174,121 @@ jobs:
             echo "FMT=$result_fmt\nINIT=$result_init\nPLAN=$result_plan\nIt's NOT OK, will hard fail."
             exit 1
           fi
+  # Proceed with labeling if the procedure is candidate to be autoapproved
+  label_autoapprove:
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    if: ${{ needs.plan.outputs.auto_approve == 'true' }}
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.BOT_TOKEN}}
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['approved', 'automatic-environment']
+            })
+
+  # Job to add the required reviewers and approvals to the PR
+  add_reviewers_and_approvals:
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    if: ${{ needs.plan.outputs.auto_approve != 'true' && needs.bluegreen.outputs.action != 'approved' }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+
+      - name: Read reviewers from file
+        id: reviewers
+        run: |
+          count=$(yq e '.requiredReviewers' OWNERS)
+          reviewers_as_json=$(yq e -j -I=0 '.reviewers' OWNERS)
+          echo "count=$count" >> $GITHUB_OUTPUT
+          echo "as_json=$reviewers_as_json" >> $GITHUB_OUTPUT
+
+      - name: Add review and approval labels
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.BOT_TOKEN}}
+          script: |
+            const reviewers_json=JSON.parse('${{ steps.reviewers.outputs.as_json }}');
+            const reviewers_count=${{ steps.reviewers.outputs.count }};
+            const label='${{ needs.bluegreen.outputs.label }}';
+            const nextlabel='${{ needs.bluegreen.outputs.nextlabel }}';
+            const labels = ['approval-required','review-required'];
+            const actor = '${{ github.event.pull_request.user.login }}'
+
+            if ( nextlabel != '' )
+              labels.push(nextlabel)
+
+            var reviewers = []
+            for ( const rev of reviewers_json ) {
+              if ( actor != rev ) {
+                reviewers.push(rev)
+              }
+            }
+
+            github.rest.pulls.requestReviewers({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              reviewers: reviewers
+            });
+
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: labels
+            });
+
+  # Place a do-not-merge label untl all the conditions are met
+  #   the conditions are:
+  #     labels are: blue-green/new or blue-green/complete
+  do_not_merge_label:
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    if: ${{ needs.plan.outputs.auto_approve != 'true' && needs.bluegreen.outputs.action != 'approved' }}
+    outputs:
+      is_mergeable: ${{ steps.check.outputs.result }}
+    steps:
+      - name: Set DO-NOT-MERGE if not in last step
+        id: check
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.BOT_TOKEN}}
+          result-encoding: string
+          script: |
+            const {data: pullLabels} = await github.rest.issues.listLabelsOnIssue({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            const labels = pullLabels.map(label => label.name);
+
+            var is_mergeable = false;
+
+            for (const aLabel of labels) {
+              if ( aLabel == 'blue-green/new' || aLabel == 'approved' ) {
+                is_mergeable = true;
+              }
+            }
+
+            if ( ! is_mergeable ) {
+              github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: [ 'do-not-merge' ]
+              });
+            }
+
+            return ( is_mergeable ? 'true' : 'false' );
+
