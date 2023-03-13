@@ -55,6 +55,14 @@ jobs:
 
             var is_approved = false;
 
+            const {data: pullLabels} = await github.rest.issues.listLabelsOnIssue({
+              issue_number: pull_request_number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            const labels = pullLabels.map(label => label.name)
+
             for (const aUser of reviewers.users ) {
               if( aUser.login == author ) {
                 is_approved = true;
@@ -93,6 +101,12 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 name: 'review-required'
+              });
+              github.rest.issues.removeLabel({
+                issue_number: pull_request_number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'do-not-merge'
               });
               github.rest.issues.addLabels({
                 issue_number: pull_request_number,
