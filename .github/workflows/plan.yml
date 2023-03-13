@@ -104,7 +104,7 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: terraform init -backend-config=${{ steps.tf_backend.outputs.config }}
+        run: terraform init -input=false -backend-config=${{ steps.tf_backend.outputs.config }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
@@ -118,7 +118,7 @@ jobs:
         run: mkdir -p ./.plans
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color -out ./.plans/plan.out
+        run: terraform plan -input=false -no-color -out ./.plans/plan.out
         continue-on-error: ${{ steps.check_automatic.outputs.autoapprove != 'true' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}

@@ -91,11 +91,11 @@ jobs:
           mkdir .deploy
           aws ssm get-parameters --names $ssm_param --query "Parameters[0].Value" --output text > .deploy/remote.tfbackend
           
-          echo "config=-backend-config=.deploy/remote.tfbackend" >> $GITHUB_OUTPUT
+          echo "config=.deploy/remote.tfbackend" >> $GITHUB_OUTPUT
 
       - name: Terraform Init
         id: init
-        run: terraform init ${{ steps.tf_backend.outputs.config }}
+        run: terraform init -input=false -backend-config=${{ steps.tf_backend.outputs.config }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
@@ -107,7 +107,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -no-color -out ./.plans/plan.out
+          terraform plan -input=false -no-color -out ./.plans/plan.out
         continue-on-error: false
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
