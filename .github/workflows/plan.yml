@@ -64,32 +64,41 @@ jobs:
         run: terraform fmt -check
         continue-on-error: true
 
-      # Get Terraform SSM Parameter List
-      - name: Get Terraform SSM Parameter List
-        id: terraform_init
+      # Get source of Configuration parameters (sensitive information)
+      - name: Get Configuration source
+        id: config_source
         uses: mikefarah/yq@master
         with:
-          cmd: yq '.terraform.ssm-parameters[] | select(.type=="init").name' ./cloudopsworks-ci.yaml
+          cmd: yq '.terraform.parameters.source' ./cloudopsworks-ci.yaml
+
+      # Get Terraform SSM Parameter List
+      - name: Get Terraform SSM Parameter List
+        id: terraform_init_ssm
+        if: steps.config_source.outputs.result == 'aws-ssm'
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '.terraform.aws-ssm.paths.init' ./cloudopsworks-ci.yaml
 
       - name: Get region from terraform.tfvars
         id: aws_region
+        if: steps.config_source.outputs.result == 'aws-ssm' || steps.config_source.outputs.result == 's3'
         uses: mikefarah/yq@master
         with:
-          cmd: yq -p props '.aws_region' terraform.tfvars | tr -d \"
+          cmd: yq '.terraform.aws-ssm.region' ./cloudopsworks-ci.yaml
 
-      - name: Download TF init file
+      - name: Download TF init file from SSM
         id: tf_backend
-        if: steps.terraform_init.outputs.result != ''
+        if: steps.config_source.outputs.result == 'aws-ssm'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ steps.aws_region.outputs.result }}
         run: |
-          ssm_param="${{ steps.terraform_init.outputs.result }}"
+          ssm_param="${{ steps.terraform_init_ssm.outputs.result }}"
           mkdir .deploy
           aws ssm get-parameters --names $ssm_param --query "Parameters[0].Value" --output text > .deploy/remote.tfbackend
           
-          echo "::set-output name=config::-backend-config=.deploy/remote.tfbackend"
+          echo "config=-backend-config=.deploy/remote.tfbackend" >> $GITHUB_OUTPUT
 
       - name: Terraform Init
         id: init
