@@ -1,5 +1,6 @@
 # Local .terraform directories
 **/.terraform/*
+.terraform.locl.hcl
 
 # .tfstate files
 *.tfstate
@@ -29,3 +30,6 @@ override.tf.json
 # example: *tfplan*
 **/.plans/*
 **/.deploy/*
+
+# IntelliJ IDEA
+.idea/

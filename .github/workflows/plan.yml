@@ -22,7 +22,7 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/labeler@v3
+      - uses: actions/labeler@v4
         with:
           repo-token: ${{ secrets.BOT_TOKEN }}
 
@@ -32,10 +32,10 @@ jobs:
         run: |
           repo_owner=`echo "$GITHUB_REPOSITORY" | cut -f 1 -d "/"`
           repo_name=`echo "$GITHUB_REPOSITORY" | cut -f 2 -d "/"`
-          echo "::set-output name=owner::$repo_owner"
-          echo "::set-output name=repo_name::$repo_name"
+          echo "owner=$repo_owner" >> $GITHUB_OUTPUT
+          echo "repo_name=$repo_name" >> $GITHUB_OUTPUT
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           token: ${{ secrets.BOT_TOKEN }}
 
@@ -48,7 +48,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.7
+          terraform_version: 1.3.3
 
       - name: Check if automatic
         id: check_automatic
@@ -57,7 +57,7 @@ jobs:
           if [[ "$is_auto" != "true" ]] ; then
             is_auto=false
           fi
-          echo "::set-output name=autoapprove::$is_auto"
+          echo "autoapprove=$is_auto" >> $GITHUB_OUTPUT
 
       - name: Terraform fmt
         id: fmt
@@ -169,8 +169,8 @@ jobs:
         run: |
           count=$(yq e '.requiredReviewers' OWNERS)
           reviewers_as_json=$(yq e -j -I=0 '.reviewers' OWNERS)
-          echo "::set-output name=count::$count"
-          echo "::set-output name=as_json::$reviewers_as_json"
+          echo "count=$count" >> $GITHUB_OUTPUT
+          echo "as_json=$reviewers_as_json" >> $GITHUB_OUTPUT
 
       - uses: actions/github-script@v6
         if: ${{ steps.check_automatic.outputs.autoapprove != 'true' }}

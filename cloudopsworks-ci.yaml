@@ -5,6 +5,19 @@
 #
 # CI/CD configurations
 terraform:
-  ssm-parameters:
-    - name: terraform_remote_state_config
-      type: init
+  parameters:
+    source: s3|aws-ssm|azure-kv|vault
+#  aws-ssm:
+#    region: us-east-1
+#    paths:
+#      init: terraform_remote_state_config
+#  s3:
+#    region: us-east-1
+#    bucketName: bucketname
+#    paths:
+#      init: terraform_remote_state_config
+#  azure-kv:
+#    resourceGroup: rg
+#    keyVaultName: kv
+#    paths:
+#      init: terraform_remote_state_config

@@ -23,17 +23,17 @@ jobs:
         run: |
           repo_owner=`echo "$GITHUB_REPOSITORY" | cut -f 1 -d "/"`
           repo_name=`echo "$GITHUB_REPOSITORY" | cut -f 2 -d "/"`
-          echo "::set-output name=owner::$repo_owner"
-          echo "::set-output name=repo_name::$repo_name"
+          echo "owner=$repo_owner" >> $GITHUB_OUTPUT
+          echo "repo_name=$repo_name" >> $GITHUB_OUTPUT
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           token: ${{ secrets.BOT_TOKEN }}
           fetch-depth: 0
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.7
+          terraform_version: 1.3.3
 
       # Get previous tags in order to proceed to generate next version
       - name: Get Previous tag
@@ -57,32 +57,41 @@ jobs:
         run: |
           wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - | tar xz && mv ${BINARY} /usr/local/bin/yq
 
-      # Get Terraform SSM Parameter List
-      - name: Get Terraform SSM Parameter List
-        id: terraform_init
+      # Get source of Configuration parameters (sensitive information)
+      - name: Get Configuration source
+        id: config_source
         uses: mikefarah/yq@master
         with:
-          cmd: yq '.terraform.ssm-parameters[] | select(.type=="init").name' ./cloudopsworks-ci.yaml
+          cmd: yq '.terraform.parameters.source' ./cloudopsworks-ci.yaml
+
+      # Get Terraform SSM Parameter List
+      - name: Get Terraform SSM Parameter List
+        id: terraform_init_ssm
+        if: steps.config_source.outputs.result == 'aws-ssm'
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '.terraform.aws-ssm.paths.init' ./cloudopsworks-ci.yaml
 
       - name: Get region from terraform.tfvars
         id: aws_region
+        if: steps.config_source.outputs.result == 'aws-ssm' || steps.config_source.outputs.result == 's3'
         uses: mikefarah/yq@master
         with:
-          cmd: yq -p props '.aws_region' terraform.tfvars | tr -d \"
+          cmd: yq '.terraform.aws-ssm.region' ./cloudopsworks-ci.yaml
 
-      - name: Download TF init file
+      - name: Download TF init file from SSM
         id: tf_backend
-        if: steps.terraform_init.outputs.result != ''
+        if: steps.config_source.outputs.result == 'aws-ssm'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ steps.aws_region.outputs.result }}
         run: |
-          ssm_param="${{ steps.terraform_init.outputs.result }}"
+          ssm_param="${{ steps.terraform_init_ssm.outputs.result }}"
           mkdir .deploy
           aws ssm get-parameters --names $ssm_param --query "Parameters[0].Value" --output text > .deploy/remote.tfbackend
           
-          echo "::set-output name=config::-backend-config=.deploy/remote.tfbackend"
+          echo "config=-backend-config=.deploy/remote.tfbackend" >> $GITHUB_OUTPUT
 
       - name: Terraform Init
         id: init
@@ -103,8 +112,8 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
-          HELM_CREDS_USER: ${{ secrets.AZURE_SERVICE_ID }}
-          HELM_CREDS_PASSWORD: ${{ secrets.AZURE_SERVICE_SECRET }}
+#          HELM_CREDS_USER: ${{ secrets.HELM_CREDENTIAL_USER }}
+#          HELM_CREDS_PASSWORD: ${{ secrets.HELM_CREDENTIAL_PASSWORD }}
           HELM_EXPERIMENTAL_OCI: "1"
           GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
@@ -116,8 +125,8 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
-          HELM_CREDS_USER: ${{ secrets.AZURE_SERVICE_ID }}
-          HELM_CREDS_PASSWORD: ${{ secrets.AZURE_SERVICE_SECRET }}
+#          HELM_CREDS_USER: ${{ secrets.AZURE_SERVICE_ID }}
+#          HELM_CREDS_PASSWORD: ${{ secrets.AZURE_SERVICE_SECRET }}
           HELM_EXPERIMENTAL_OCI: "1"
           GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
@@ -128,7 +137,8 @@ jobs:
           NEXT_VERSION: "${{ steps.semvers.outputs.patch }}"
         run: |
           echo -n "$NEXT_VERSION" > VERSION
-          echo "::set-output name=release_version::$NEXT_VERSION"
+          
+          echo "release_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
 
       # Push the changes to Git TAG before deploying anything
       - name: Release Version
