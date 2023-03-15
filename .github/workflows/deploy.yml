@@ -41,6 +41,7 @@ jobs:
       # Get previous tags in order to proceed to generate next version
       - name: Get Previous tag
         uses: WyriHaximus/github-action-get-previous-tag@v1
+        if: github.ref == 'master'
         id: previoustag
         with:
           fallback: 1.0.0
@@ -49,6 +50,7 @@ jobs:
       # Generate next SEMVER number
       - name: Next Semver
         uses: WyriHaximus/github-action-next-semvers@v1
+        if: github.ref == 'master'
         id: semvers
         with:
           version: "${{ steps.previoustag.outputs.tag }}"
@@ -135,6 +137,7 @@ jobs:
 
       # Create a VERSION file to use through the build
       - name: Set Version File
+        if: github.ref == 'master'
         id: release
         env:
           NEXT_VERSION: "${{ steps.semvers.outputs.patch }}"
@@ -145,6 +148,7 @@ jobs:
 
       # Push the changes to Git TAG before deploying anything
       - name: Release Version
+        if: github.ref == 'master'
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
