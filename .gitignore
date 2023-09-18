@@ -33,3 +33,7 @@ override.tf.json
 
 # IntelliJ IDEA
 .idea/
+
+# Tronador accelerator
+.tronador
+tronador/
