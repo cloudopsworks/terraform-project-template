@@ -45,18 +45,17 @@ config:
   requiredReviewers: 1
 
   # Optional only needed if not automatic or protection is true
-  #reviewers:
-
-  #    - elasticguru-bot
-  #    - cloudopsworks-dev
-  #    - cloudopsworks/engineering
+#  reviewers:
+#      - elasticguru-bot
+#      - cloudopsworks-dev
+#      - cloudopsworks/engineering
 
   # Optional Only needed for permit owners to perform commits under protected branches.
   # Teams are specified as org/team-name
-  #  owners:
-  #    - elasticguru-bot
-  #    - cloudopsworks-dev
-  #    - cloudopsworks/admin
+#  owners:
+#    - elasticguru-bot
+#    - cloudopsworks-dev
+#    - cloudopsworks/admin
 
   # Optional configure the repository members
   contributors:
@@ -72,30 +71,31 @@ cd:
   # Indicate that the environment makes automatic merges and deploys
   automatic: false
 
-  develop:
-    env: dev
-    #releaseName: xxxx
-    terraformPrefix: dev
-  main:
-    env: production
-    #releaseName: xxxx
-    terraformPrefix: prod
-  release:
-    env: uat
-    #releaseName: xxxx
-    terraformPrefix: uat
-  hotfix:
-    env: hotfix
-    #releaseName: xxxx
-    terraformPrefix: hotfix
-  pull_request:
-    env: pull_request
-    #releaseName: xxxx
-    terraformPrefix: pull_request
-  support:
-    - match: 1.5.*
-      env: demo
-      terraformPrefix: demo
-    - match: 1.3.*
-      env: demo2
-      terraformPrefix: demo2
+  deployments:
+    develop:
+      env: dev
+      #releaseName: xxxx
+      terraformPrefix: dev
+    main:
+      env: production
+      #releaseName: xxxx
+      terraformPrefix: prod
+    release:
+      env: uat
+      #releaseName: xxxx
+      terraformPrefix: uat
+    hotfix:
+      env: hotfix
+      #releaseName: xxxx
+      terraformPrefix: hotfix
+    pull_request:
+      env: pull_request
+      #releaseName: xxxx
+      terraformPrefix: pull_request
+    support:
+      - match: 1.5.*
+        env: demo
+        terraformPrefix: demo
+      - match: 1.3.*
+        env: demo2
+        terraformPrefix: demo2
