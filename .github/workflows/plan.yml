@@ -6,9 +6,15 @@
 name: Terraform Project Plan on Pull request
 on:
   pull_request:
+    branches:
+      - main
+      - master
+      - develop
+      - support/**
+      - release/**
     paths-ignore:
-      - ".github/workflows/**"
-      - "modules/**"
+      - .github/workflows/**
+      - modules/**
 
 concurrency: plan-terraform-project
 
@@ -24,7 +30,7 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      auto_approve: ${{ steps.check_automatic.outputs.autoapprove }}
+      auto_approve: ${{ steps.check_automatic.outputs.result }}
     steps:
       - uses: actions/labeler@v4
         with:
@@ -56,12 +62,9 @@ jobs:
 
       - name: Check if automatic
         id: check_automatic
-        run: |
-          is_auto=$(yq e '.automatic' OWNERS)
-          if [[ "$is_auto" != "true" ]] ; then
-            is_auto=false
-          fi
-          echo "autoapprove=$is_auto" >> $GITHUB_OUTPUT
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '.cd.automatic' ./cloudopsworks-ci.yaml | tr '[:upper:]' '[:lower:]'
 
       - name: Terraform fmt
         id: fmt
@@ -74,6 +77,12 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd: yq '.terraform.parameters.source' ./cloudopsworks-ci.yaml
+
+      - name: Get the deployments configuration
+        id: deploy_conf
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -o=json -I=0 '.cd.deployments' cloudopsworks-ci.yaml
 
       # Get Terraform SSM Parameter List
       - name: Get Terraform SSM Parameter List
@@ -112,6 +121,49 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
           GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
+
+      # Set the appropriate workspace from what is configured from the deploy_conf step
+      # Result is stored as JSON with the format found on the cd.deployments section on cloudopsworks-ci.yaml
+      - name: Set the appropriate workspace
+        id: workspace
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const deployments = JSON.parse('${{ steps.deploy_conf.outputs.result }}');
+            const branch = '${{ context.ref }}';
+            
+            var tfWorkspace;
+            var tfPrefix;
+            if ( branch.startsWith('support') ) {
+              const oneMatch = deployments.support.find( ({ match }) => branch.match(new RegExp('support/'+match,'g')) );
+              tfWorkspace = oneMatch.env;
+              tfPrefix = oneMatch.terraformPrefix;
+            } else if ( branch.startsWith('release') ) {
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;
+            } else if ( branch === 'develop' ) {
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;              
+            } else if ( branch === 'main' || branch === 'master' ) {
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;
+            } else {
+              core.setFailed('Branch not supported');
+            }
+            const outputV = { workspace: tfWorkspace, prefix: tfPrefix }; 
+            core.setOutput('config', outputV);
+            
+            return outputV;
+
+      - name: Terraform Workspace Check and Selection
+        id: workspace_check
+        run: |
+          terraform workspace select ${{ steps.workspace.outputs.config.workspace }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
+          GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
@@ -120,8 +172,8 @@ jobs:
         run: mkdir -p ./.plans
       - name: Terraform Plan
         id: plan
-        run: terraform plan -input=false -no-color -out ./.plans/plan.out
-        continue-on-error: ${{ steps.check_automatic.outputs.autoapprove != 'true' }}
+        run: terraform plan -var-file ${{ steps.workspace.outputs.config.prefix }}.terraform.tfvars -input=false -no-color -out ./.plans/plan.out
+        continue-on-error: ${{ steps.check_automatic.output.result != 'true' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
@@ -143,6 +195,7 @@ jobs:
           github-token: ${{ secrets.BOT_TOKEN }}
           script: |
             const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Workspace 🏢\`${{ steps.workspace.outputs.config.workspace }}\`
             #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
             #### Terraform Validation 🤖\`${{ steps.validate.outputs.stdout }}\`
             #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`

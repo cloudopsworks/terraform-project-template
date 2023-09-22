@@ -9,12 +9,13 @@ on:
   push:
     branches:
       - master
-      - dev*
-      - prod*
-      - stag*
+      - main
+      - develop
+      - support/**
+      - release/**
     paths-ignore:
-      - ".github/workflows/**"
-      - "modules/**"
+      - .github/workflows/**:
+      - modules/**
 
 jobs:
   deploy:
@@ -38,22 +39,22 @@ jobs:
         with:
           terraform_version: 1.3.3
 
-      # Get previous tags in order to proceed to generate next version
-      - name: Get Previous tag
-        uses: WyriHaximus/github-action-get-previous-tag@v1
-        if: github.ref == 'master'
-        id: previoustag
-        with:
-          fallback: 1.0.0
-        env:
-          GITHUB_TOKEN: "${{ secrets.BOT_TOKEN }}"
-      # Generate next SEMVER number
-      - name: Next Semver
-        uses: WyriHaximus/github-action-next-semvers@v1
-        if: github.ref == 'master'
-        id: semvers
-        with:
-          version: "${{ steps.previoustag.outputs.tag }}"
+#      # Get previous tags in order to proceed to generate next version
+#      - name: Get Previous tag
+#        uses: WyriHaximus/github-action-get-previous-tag@v1
+#        if: github.ref == 'master'
+#        id: previoustag
+#        with:
+#          fallback: 1.0.0
+#        env:
+#          GITHUB_TOKEN: "${{ secrets.BOT_TOKEN }}"
+#      # Generate next SEMVER number
+#      - name: Next Semver
+#        uses: WyriHaximus/github-action-next-semvers@v1
+#        if: github.ref == 'master'
+#        id: semvers
+#        with:
+#          version: "${{ steps.previoustag.outputs.tag }}"
 
       - name: Download yq Binary
         env:
@@ -84,6 +85,12 @@ jobs:
         with:
           cmd: yq '.terraform.aws-ssm.region' ./cloudopsworks-ci.yaml
 
+      - name: Get the deployments configuration
+        id: deploy_conf
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -o=json -I=0 '.cd.deployments' cloudopsworks-ci.yaml
+
       - name: Download TF init file from SSM
         id: tf_backend
         if: steps.config_source.outputs.result == 'aws-ssm'
@@ -106,13 +113,65 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
           GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
+      # Set the appropriate workspace from what is configured from the deploy_conf step
+      # Result is stored as JSON with the format found on the cd.deployments section on cloudopsworks-ci.yaml
+      - name: Set the appropriate workspace
+        id: workspace
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const deployments = JSON.parse('${{ steps.deploy_conf.outputs.result }}');
+            const branch = '${{ context.ref }}';
+            
+            var tfWorkspace;
+            var tfPrefix;
+            if ( branch.startsWith('support') ) {
+              const oneMatch = deployments.support.find( ({ match }) => branch.match(new RegExp('support/'+match,'g')) );
+              tfWorkspace = oneMatch.env;
+              tfPrefix = oneMatch.terraformPrefix;
+            } else if ( branch.startsWith('release') ) {
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;
+            } else if ( branch === 'develop' ) {
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;              
+            } else if ( branch === 'main' || branch === 'master' ) {
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;
+            } else {
+              core.setFailed('Branch not supported');
+            }
+            const outputV = { workspace: tfWorkspace, prefix: tfPrefix }; 
+            core.setOutput('config', outputV);
+            
+            return outputV;
+
       - name: Create Plan Directory
         run: mkdir -p ./.plans
+
+      - name: Terraform Workspace Check Existence and Selection
+        id: workspace_check
+        run: |
+          terraform workspace select ${{ steps.workspace.outputs.config.workspace }}
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
+          GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
+
+      - name: Terraform Workspace Create
+        if: steps.workspace_check.outcome == 'failure'
+        run: |
+          terraform workspace new ${{ steps.workspace.outputs.config.workspace }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
+          GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -input=false -no-color -out ./.plans/plan.out
+          terraform plan ${{ steps.workspace.outputs.config.prefix }}.terraform.tfvars  -input=false -no-color -out ./.plans/plan.out
         continue-on-error: false
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
@@ -146,14 +205,14 @@ jobs:
           
           echo "release_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
 
-      # Push the changes to Git TAG before deploying anything
-      - name: Release Version
-        if: github.ref == 'master'
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        run: |
-          VERSION=$(cat VERSION)
-          git config --global user.name "${{ vars.BOT_USER }}"
-          git config --global user.email "${{ vars.BOT_EMAIL }}"
-          git tag -fa v$VERSION -m "Environment Release v$VERSION"
-          git push origin v$VERSION
+#      # Push the changes to Git TAG before deploying anything
+#      - name: Release Version
+#        if: github.ref == 'master'
+#        env:
+#          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+#        run: |
+#          VERSION=$(cat VERSION)
+#          git config --global user.name "${{ vars.BOT_USER }}"
+#          git config --global user.email "${{ vars.BOT_EMAIL }}"
+#          git tag -fa v$VERSION -m "Environment Release v$VERSION"
+#          git push origin v$VERSION
