@@ -22,9 +22,14 @@ aws-vault exec <profile> -- aws ssm get-parameterskube \
 aws-vault exec <profile> -- terraform init -backend-config=/tmp/remote.tfbackend
 ```
 
+### Terraform workspace selection
+```shell
+aws-vault exec <profile> -- terraform workspace select <workspace name>
+```
+
 ### Terraform plan output
 ```shell
-aws-vault exec <profile> -- terraform plan -out /tmp/plan.out
+aws-vault exec <profile> -- terraform plan -var-file tfvars/<env>.terraform.tfvars -out /tmp/plan.out
 ```
 
 ### Terraform apply

@@ -14,7 +14,7 @@ on:
       - support/**
       - release/**
     paths-ignore:
-      - .github/workflows/**:
+      - .github/workflows/**
       - modules/**
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
         with:
           script: |
             const deployments = JSON.parse('${{ steps.deploy_conf.outputs.result }}');
-            const branch = '${{ context.ref }}';
+            const branch = '${{ github.ref_name }}';
             
             var tfWorkspace;
             var tfPrefix;
@@ -133,16 +133,17 @@ jobs:
               tfWorkspace = deployments.release.env;
               tfPrefix = deployments.release.terraformPrefix;
             } else if ( branch === 'develop' ) {
-              tfWorkspace = deployments.release.env;
-              tfPrefix = deployments.release.terraformPrefix;              
+              tfWorkspace = deployments.develop.env;
+              tfPrefix = deployments.develop.terraformPrefix;              
             } else if ( branch === 'main' || branch === 'master' ) {
-              tfWorkspace = deployments.release.env;
-              tfPrefix = deployments.release.terraformPrefix;
+              tfWorkspace = deployments.main.env;
+              tfPrefix = deployments.main.terraformPrefix;
             } else {
               core.setFailed('Branch not supported');
             }
             const outputV = { workspace: tfWorkspace, prefix: tfPrefix }; 
-            core.setOutput('config', outputV);
+            core.setOutput('workspace', tfWorkspace);
+            core.setOutput('prefix', tfPrefix);
             
             return outputV;
 
@@ -152,7 +153,7 @@ jobs:
       - name: Terraform Workspace Check Existence and Selection
         id: workspace_check
         run: |
-          terraform workspace select ${{ steps.workspace.outputs.config.workspace }}
+          terraform workspace select ${{ steps.workspace.outputs.workspace }}
         continue-on-error: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
@@ -162,7 +163,7 @@ jobs:
       - name: Terraform Workspace Create
         if: steps.workspace_check.outcome == 'failure'
         run: |
-          terraform workspace new ${{ steps.workspace.outputs.config.workspace }}
+          terraform workspace new ${{ steps.workspace.outputs.workspace }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
@@ -171,7 +172,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan ${{ steps.workspace.outputs.config.prefix }}.terraform.tfvars  -input=false -no-color -out ./.plans/plan.out
+          terraform plan -var-file tfvars/${{ steps.workspace.outputs.prefix }}.terraform.tfvars  -input=false -no-color -out ./.plans/plan.out
         continue-on-error: false
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
