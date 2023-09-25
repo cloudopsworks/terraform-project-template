@@ -1,21 +1,24 @@
-# (c) 2022 - Cloud Ops Works LLC - https://cloudops.works/
+# (c) 2023 - Cloud Ops Works LLC - https://cloudops.works/
 #            On GitHub: https://github.com/cloudopsworks
 #            Distributed Under Apache v2.0 License
 #
 name: Terraform Project Deploy
 on:
   workflow_dispatch:
-    
+
   push:
+    tags:
+      - v*
     branches:
-      - master
-      - main
       - develop
       - support/**
       - release/**
     paths-ignore:
       - .github/workflows/**
       - modules/**
+
+concurrency: deploy-${{ github.repository }}-${{ github.ref }}
+
 
 jobs:
   deploy:
@@ -38,30 +41,6 @@ jobs:
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.3.3
-
-#      # Get previous tags in order to proceed to generate next version
-#      - name: Get Previous tag
-#        uses: WyriHaximus/github-action-get-previous-tag@v1
-#        if: github.ref == 'master'
-#        id: previoustag
-#        with:
-#          fallback: 1.0.0
-#        env:
-#          GITHUB_TOKEN: "${{ secrets.BOT_TOKEN }}"
-#      # Generate next SEMVER number
-#      - name: Next Semver
-#        uses: WyriHaximus/github-action-next-semvers@v1
-#        if: github.ref == 'master'
-#        id: semvers
-#        with:
-#          version: "${{ steps.previoustag.outputs.tag }}"
-
-      - name: Download yq Binary
-        env:
-          VERSION: v4.23.1
-          BINARY: yq_linux_amd64
-        run: |
-          wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - | tar xz && mv ${BINARY} /usr/local/bin/yq
 
       # Get source of Configuration parameters (sensitive information)
       - name: Get Configuration source
@@ -125,25 +104,37 @@ jobs:
             
             var tfWorkspace;
             var tfPrefix;
+            var isRelease = false;
+            var isPreRelease = false;
             if ( branch.startsWith('support') ) {
               const oneMatch = deployments.support.find( ({ match }) => branch.match(new RegExp('support/'+match,'g')) );
               tfWorkspace = oneMatch.env;
               tfPrefix = oneMatch.terraformPrefix;
-            } else if ( branch.startsWith('release') ) {
+            } else if ( branch.startsWith('release') || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+-.*[-\.].*/) ) {            
+              // Regular expression to match following semver pattern: v1.0.2-alpha.10-uoiretu834u
+              isPreRelease = true;
               tfWorkspace = deployments.release.env;
               tfPrefix = deployments.release.terraformPrefix;
             } else if ( branch === 'develop' ) {
               tfWorkspace = deployments.develop.env;
-              tfPrefix = deployments.develop.terraformPrefix;              
-            } else if ( branch === 'main' || branch === 'master' ) {
+              tfPrefix = deployments.develop.terraformPrefix;
+            } else if ( branch === 'main' || branch === 'master' || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+$/) ) {
+              isRelease = true;
               tfWorkspace = deployments.main.env;
               tfPrefix = deployments.main.terraformPrefix;
             } else {
               core.setFailed('Branch not supported');
             }
-            const outputV = { workspace: tfWorkspace, prefix: tfPrefix }; 
+            const outputV = { 
+              workspace: tfWorkspace, 
+              prefix: tfPrefix, 
+              isPreRelease: isPreRelease, 
+              isRelease: isRelease
+            }; 
             core.setOutput('workspace', tfWorkspace);
             core.setOutput('prefix', tfPrefix);
+            core.setOutput('isRelease', isRelease);
+            core.setOutput('isPreRelease', isPreRelease);
             
             return outputV;
 
@@ -197,14 +188,29 @@ jobs:
 
       # Create a VERSION file to use through the build
       - name: Set Version File
-        if: github.ref == 'master'
-        id: release
+        if: ${{ steps.workspace.outputs.isRelease || steps.workspace.outputs.isPreRelease }}
         env:
-          NEXT_VERSION: "${{ steps.semvers.outputs.patch }}"
+          NEXT_VERSION: "${{ github.ref_name }}"
         run: |
           echo -n "$NEXT_VERSION" > VERSION
-          
-          echo "release_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+      # Output Changelog from previous tag
+      - name: Changelog
+        if: ${{ steps.workspace.outputs.isRelease || steps.workspace.outputs.isPreRelease }}
+        uses: heinrichreimer/action-github-changelog-generator@v2.3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          output: CHANGELOG.md
+
+      # Create GitHub Release
+      - name: GitHub Release
+        if: ${{ steps.workspace.outputs.isRelease || steps.workspace.outputs.isPreRelease }}
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          name: "Release ${{ github.ref_name }}"
+          body_path: CHANGELOG.md
+          prerelease: ${{ steps.workspace.outputs.isPreRelease }}
 
 #      # Push the changes to Git TAG before deploying anything
 #      - name: Release Version

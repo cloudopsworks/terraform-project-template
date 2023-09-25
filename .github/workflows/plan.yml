@@ -16,7 +16,7 @@ on:
       - .github/workflows/**
       - modules/**
 
-concurrency: plan-terraform-project
+concurrency: plan-${{ github.repository }}-${{ github.ref }}
 
 permissions:
   contents: read
@@ -48,13 +48,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.BOT_TOKEN }}
-
-      - name: Download yq Binary
-        env:
-          VERSION: v4.23.1
-          BINARY: yq_linux_amd64
-        run: |
-          wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - | tar xz && mv ${BINARY} /usr/local/bin/yq
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -130,7 +123,8 @@ jobs:
         with:
           script: |
             const deployments = JSON.parse('${{ steps.deploy_conf.outputs.result }}');
-            const branch = '${{ github.ref_name }}';
+            const base = '${{ github.base_ref }}';
+            const branch = base.replace('refs/heads/','');
             
             var tfWorkspace;
             var tfPrefix;
@@ -138,13 +132,13 @@ jobs:
               const oneMatch = deployments.support.find( ({ match }) => branch.match(new RegExp('support/'+match,'g')) );
               tfWorkspace = oneMatch.env;
               tfPrefix = oneMatch.terraformPrefix;
-            } else if ( branch.startsWith('release') ) {
+            } else if ( branch.startsWith('release') || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+-.*[-\.].*/) ) {
               tfWorkspace = deployments.release.env;
               tfPrefix = deployments.release.terraformPrefix;
             } else if ( branch === 'develop' ) {
               tfWorkspace = deployments.develop.env;
               tfPrefix = deployments.develop.terraformPrefix;              
-            } else if ( branch === 'main' || branch === 'master' ) {
+            } else if ( branch === 'main' || branch === 'master' || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+$/) ) {
               tfWorkspace = deployments.main.env;
               tfPrefix = deployments.main.terraformPrefix;
             } else {
