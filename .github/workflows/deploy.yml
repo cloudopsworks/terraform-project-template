@@ -188,7 +188,7 @@ jobs:
 
       # Create a VERSION file to use through the build
       - name: Set Version File
-        if: ${{ steps.workspace.outputs.isRelease || steps.workspace.outputs.isPreRelease }}
+        if: ${{ steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' }}
         env:
           NEXT_VERSION: "${{ github.ref_name }}"
         run: |
@@ -196,7 +196,7 @@ jobs:
 
       # Output Changelog from previous tag
       - name: Changelog
-        if: ${{ steps.workspace.outputs.isRelease || steps.workspace.outputs.isPreRelease }}
+        if: ${{ steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' }}
         uses: heinrichreimer/action-github-changelog-generator@v2.3
         with:
           token: ${{ secrets.BOT_TOKEN }}
@@ -204,7 +204,7 @@ jobs:
 
       # Create GitHub Release
       - name: GitHub Release
-        if: ${{ steps.workspace.outputs.isRelease || steps.workspace.outputs.isPreRelease }}
+        if: ${{ steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' }}
         uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.BOT_TOKEN }}
