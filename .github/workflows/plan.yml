@@ -106,14 +106,23 @@ jobs:
           
           echo "config=.deploy/remote.tfbackend" >> $GITHUB_OUTPUT
 
-      - name: Terraform Init
+      - name: Terraform Init With Remote Backend
         id: init
+        if: steps.config_source.outputs.result != 'none'
         run: terraform init -input=false -backend-config=${{ steps.tf_backend.outputs.config }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
           GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
+      - name: Terraform Init
+        id: init
+        if: steps.config_source.outputs.result == 'none'
+        run: terraform init -input=false
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
+          GITHUB_API_TOKEN: ${{ secrets.BOT_TOKEN }}
 
       # Set the appropriate workspace from what is configured from the deploy_conf step
       # Result is stored as JSON with the format found on the cd.deployments section on cloudopsworks-ci.yaml

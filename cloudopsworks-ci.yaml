@@ -6,7 +6,7 @@
 # CI/CD configurations
 terraform:
   parameters:
-    source: s3|aws-ssm|azure-kv|vault
+    source: s3|aws-ssm|azure-kv|vault|none
 #  aws-ssm:
 #    region: us-east-1
 #    paths:

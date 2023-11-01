@@ -1,0 +1,4 @@
+variable "ssm_output_path" {
+  type    = string
+  default = ""
+}
