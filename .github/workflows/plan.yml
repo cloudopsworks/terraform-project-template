@@ -144,9 +144,9 @@ jobs:
               tfWorkspace = oneMatch.env;
               tfPrefix = oneMatch.terraformPrefix;
             } else if ( branch.startsWith('release') ) {
-              isEnabled = (deployments.release['enabled'] == null ? true : (deployments.release['enabled'] === 'true'));
-              tfWorkspace = deployments.release.env;
-              tfPrefix = deployments.release.terraformPrefix;
+              isEnabled = (deployments.test['enabled'] == null ? true : (deployments.test['enabled'] === 'true'));
+              tfWorkspace = deployments.test.env;
+              tfPrefix = deployments.test.terraformPrefix;
             } else if ( branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)[-\.][0-9]+/) ) {
               isEnabled = (deployments.prerelease['enabled'] == null ? true : (deployments.prerelease['enabled'] === 'true'));
               // Regular expression to match following semver pattern: v1.0.2-alpha.10-uoiretu834u
@@ -159,18 +159,18 @@ jobs:
               tfPrefix = deployments.develop.terraformPrefix;
             } else if ( branch === 'main' || branch === 'master' || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+$/) ) {
               isRelease = true;
-              tfWorkspace = deployments.main.env;
-              tfPrefix = deployments.main.terraformPrefix;
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;
             } else {
               core.setFailed('Branch not supported');
             }
-            const outputV = { 
-              workspace: tfWorkspace, 
-              prefix: tfPrefix, 
-              isPreRelease: isPreRelease, 
+            const outputV = {
+              workspace: tfWorkspace,
+              prefix: tfPrefix,
+              isPreRelease: isPreRelease,
               isRelease: isRelease,
               isEnabled: isEnabled
-            }; 
+            };
             core.setOutput('workspace', tfWorkspace);
             core.setOutput('prefix', tfPrefix);
             core.setOutput('isRelease', isRelease);
