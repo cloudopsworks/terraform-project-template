@@ -106,22 +106,29 @@ jobs:
             var tfPrefix;
             var isRelease = false;
             var isPreRelease = false;
+            var isEnabled = true;
             if ( branch.startsWith('support') ) {
               const oneMatch = deployments.support.find( ({ match }) => branch.match(new RegExp('support/'+match,'g')) );
               tfWorkspace = oneMatch.env;
               tfPrefix = oneMatch.terraformPrefix;
-            } else if ( branch.startsWith('release') || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+-.*[-\.].*/) ) {            
+            } else if ( branch.startsWith('release') ) {
+              isEnabled = (deployments.test['enabled'] == null ? true : (deployments.test['enabled'] === 'true'));
+              tfWorkspace = deployments.test.env;
+              tfPrefix = deployments.release.terraformPrefix;
+            } else if ( branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)[-\.][0-9]+/) ) {
+              isEnabled = (deployments.prerelease['enabled'] == null ? true : (deployments.prerelease['enabled'] === 'true'));
               // Regular expression to match following semver pattern: v1.0.2-alpha.10-uoiretu834u
               isPreRelease = true;
-              tfWorkspace = deployments.release.env;
-              tfPrefix = deployments.release.terraformPrefix;
+              tfWorkspace = deployments.prerelease.env;
+              tfPrefix = deployments.prerelease.terraformPrefix;
             } else if ( branch === 'develop' ) {
+              isEnabled = (deployments.develop['enabled'] == null ? true : (deployments.develop['enabled'] === 'true'));
               tfWorkspace = deployments.develop.env;
               tfPrefix = deployments.develop.terraformPrefix;
             } else if ( branch === 'main' || branch === 'master' || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+$/) ) {
               isRelease = true;
-              tfWorkspace = deployments.main.env;
-              tfPrefix = deployments.main.terraformPrefix;
+              tfWorkspace = deployments.release.env;
+              tfPrefix = deployments.release.terraformPrefix;
             } else {
               core.setFailed('Branch not supported');
             }
@@ -129,12 +136,14 @@ jobs:
               workspace: tfWorkspace, 
               prefix: tfPrefix, 
               isPreRelease: isPreRelease, 
-              isRelease: isRelease
+              isRelease: isRelease,
+              isEnabled: isEnabled
             }; 
             core.setOutput('workspace', tfWorkspace);
             core.setOutput('prefix', tfPrefix);
             core.setOutput('isRelease', isRelease);
             core.setOutput('isPreRelease', isPreRelease);
+            core.setOutput('isEnabled', isEnabled);
             
             return outputV;
 
@@ -162,6 +171,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
+        if: ${{ steps.workspace.outputs.isEnabled == 'true' }}
         run: |
           terraform plan -var-file tfvars/${{ steps.workspace.outputs.prefix }}.terraform.tfvars  -input=false -no-color -out ./.plans/plan.out
         continue-on-error: false
@@ -175,6 +185,7 @@ jobs:
 
       - name: Terraform Apply
         id: apply
+        if: ${{ steps.workspace.outputs.isEnabled == 'true' }}
         run: |
           terraform apply -no-color ./.plans/plan.out
         continue-on-error: false
@@ -188,7 +199,7 @@ jobs:
 
       # Create a VERSION file to use through the build
       - name: Set Version File
-        if: ${{ steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' }}
+        if: ${{ ( steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' ) && steps.workspace.outputs.isEnabled == 'true' }}
         env:
           NEXT_VERSION: "${{ github.ref_name }}"
         run: |
@@ -196,7 +207,7 @@ jobs:
 
       # Output Changelog from previous tag
       - name: Changelog
-        if: ${{ steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' }}
+        if: ${{ ( steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' ) && steps.workspace.outputs.isEnabled == 'true'  }}
         uses: heinrichreimer/action-github-changelog-generator@v2.3
         with:
           token: ${{ secrets.BOT_TOKEN }}
@@ -204,7 +215,7 @@ jobs:
 
       # Create GitHub Release
       - name: GitHub Release
-        if: ${{ steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' }}
+        if: ${{ ( steps.workspace.outputs.isRelease == 'true' || steps.workspace.outputs.isPreRelease == 'true' ) && steps.workspace.outputs.isEnabled == 'true'  }}
         uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.BOT_TOKEN }}

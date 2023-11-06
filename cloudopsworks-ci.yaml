@@ -73,24 +73,25 @@ cd:
 
   deployments:
     develop:
+      #enabled: false
       env: dev
-      #releaseName: xxxx
       terraformPrefix: dev
-    main:
-      env: production
-      #releaseName: xxxx
-      terraformPrefix: prod
     release:
+      env: production
+      terraformPrefix: prod
+    test:
+      #enabled: false
+      env: test
+      terraformPrefix: test
+    prerelease:
+      #enabled: false
       env: uat
-      #releaseName: xxxx
       terraformPrefix: uat
     hotfix:
       env: hotfix
-      #releaseName: xxxx
       terraformPrefix: hotfix
     pull_request:
       env: pull_request
-      #releaseName: xxxx
       terraformPrefix: pull_request
     support:
       - match: 1.5.*
