@@ -115,23 +115,45 @@ jobs:
               isEnabled = (deployments.test['enabled'] == null ? true : (deployments.test['enabled'] === 'true'));
               tfWorkspace = deployments.test.env;
               tfPrefix = deployments.test.terraformPrefix;
-            } else if ( branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)[-\.][0-9]+/) ) {
-              isEnabled = (deployments.prerelease['enabled'] == null ? true : (deployments.prerelease['enabled'] === 'true'));
-              // Regular expression to match following semver pattern: v1.0.2-alpha.10-uoiretu834u
-              isPreRelease = true;
-              tfWorkspace = deployments.prerelease.env;
-              tfPrefix = deployments.prerelease.terraformPrefix;
             } else if ( branch === 'develop' ) {
               isEnabled = (deployments.develop['enabled'] == null ? true : (deployments.develop['enabled'] === 'true'));
               tfWorkspace = deployments.develop.env;
               tfPrefix = deployments.develop.terraformPrefix;
-            } else if ( branch === 'main' || branch === 'master' || branch.match(/^v[0-9]+\.[0-9]+\.[0-9]+$/) ) {
-              isRelease = true;
-              tfWorkspace = deployments.release.env;
-              tfPrefix = deployments.release.terraformPrefix;
             } else {
-              core.setFailed('Branch not supported');
-            }
+              // This semver structure is obtained as per specification https://semver.org/ & https://regex101.com/r/vkijKf/1/
+              semver = branch.match(/^v(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?/);
+              if ( semver != null ) {
+                const pre = semver['groups']['prerelease'];
+                const buildmeta = semver['groups']['buildmetadata'];
+                // buildmeta format is deploy-XXXX.yyy.zzz
+                // the metasuffix should be the deploy- prefix
+                if ( pre != null && buildmeta != null) {
+                  const metasuffix = buildmeta.match(/deploy-(?<data>.*)/);
+                  isEnabled = (deployments.prerelease['enabled'] == null ? true : (deployments.prerelease['enabled'] === 'true'));
+                  isPreRelease = true;
+                  tfWorkspace = deployments.prerelease.targets[metasuffix.groups.data].env;
+                  tfPrefix = deployments.prerelease.targets[metasuffix.groups.data].terraformPrefix;
+                } else if ( pre != null ) {
+                  isEnabled = (deployments.prerelease['enabled'] == null ? true : (deployments.prerelease['enabled'] === 'true'));
+                  // Regular expression to match following semver pattern: v1.0.2-alpha.10-uoiretu834u
+                  isPreRelease = true;
+                  tfWorkspace = deployments.prerelease.env;
+                  tfPrefix = deployments.prerelease.terraformPrefix;                
+                } else if ( buildmeta != null ) {
+                  const metasuffix = buildmeta.match(/deploy-(?<data>.*)/);
+                  isRelease = true;
+                  tfWorkspace = deployments.release.targets[metasuffix.groups.data].env;
+                  tfPrefix = deployments.release.targets[metasuffix.groups.data].terraformPrefix;                  
+                } else {
+                  isRelease = true;
+                  tfWorkspace = deployments.release.env;
+                  tfPrefix = deployments.release.terraformPrefix;
+                }
+              } else {
+                core.setFailed('Branch not supported');
+              }
+            }            
+            
             const outputV = { 
               workspace: tfWorkspace, 
               prefix: tfPrefix, 

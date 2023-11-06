@@ -79,6 +79,10 @@ cd:
     release:
       env: production
       terraformPrefix: prod
+      targets:
+        my-target:
+          env: production-my-target
+          terraformPrefix: prod-my-target
     test:
       #enabled: false
       env: test
@@ -87,6 +91,10 @@ cd:
       #enabled: false
       env: uat
       terraformPrefix: uat
+      targets:
+        my-target:
+          env: uat-my-target
+          terraformPrefix: uat-my-target
     hotfix:
       env: hotfix
       terraformPrefix: hotfix
