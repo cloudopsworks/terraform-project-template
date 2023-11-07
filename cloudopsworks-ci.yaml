@@ -60,11 +60,11 @@ config:
   # Optional configure the repository members
   contributors:
     admin:
-      - finconecta-team/dev-ops
+      - cloudopsworks/admin
     triage: []
     pull: []
     push:
-      - finconecta-team/core-devs
+      - cloudopsworks/devs
     maintain: []
 
 cd:
