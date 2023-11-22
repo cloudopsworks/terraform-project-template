@@ -132,7 +132,7 @@ jobs:
         with:
           script: |
             const deployments = JSON.parse('${{ steps.deploy_conf.outputs.result }}');
-            const branch = '${{ github.ref_name }}';
+            const branch = '${{ github.head_ref }}';
             
             var tfWorkspace;
             var tfPrefix;
