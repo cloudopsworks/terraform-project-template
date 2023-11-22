@@ -295,7 +295,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ github.head_ref != 'master' && github.head_ref != 'main' && ! github.head_ref.startsWith('support') && github.event_name == 'pull_request' }}
+    if: ${{ github.head_ref != 'master' && github.head_ref != 'main' && ( ! startsWith(github.head_ref, 'support') ) && github.event_name == 'pull_request' }}
     steps:
       - uses: actions/github-script@v6
         with:
@@ -313,7 +313,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ ( github.head_ref == 'master' || github.head_ref == 'main' || github.head_ref.startsWith('support') ) && github.event_name == 'pull_request' }}
+    if: ${{ ( github.head_ref == 'master' || github.head_ref == 'main' || startsWith(github.head_ref, 'support') ) && github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -369,7 +369,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ ( github.head_ref == 'master' || github.head_ref == 'main' || github.head_ref.startsWith('support') ) && github.event_name == 'pull_request' }}
+    if: ${{ ( github.head_ref == 'master' || github.head_ref == 'main' || startsWith(github.head_ref, 'support') ) && github.event_name == 'pull_request' }}
     outputs:
       is_mergeable: ${{ steps.check.outputs.result }}
     steps:
