@@ -277,9 +277,10 @@ jobs:
         run: |
           result_fmt="${{ steps.fmt.outcome }}"
           result_init="${{ steps.init.outcome }}"
+          result_init_r="${{ steps.init_remote.outcome }}"
           result_plan="${{ steps.plan.outcome }}"
           
-          if [[ "$result_fmt" == "success" && "$result_init" == "success" && "$result_plan" == "success" ]] ; then
+          if [[ "$result_fmt" == "success" && ("$result_init" == "success" || "$result_init_r" == "success") && "$result_plan" == "success" ]] ; then
             echo "All OK... nothing todo"
           else
             echo "FMT=$result_fmt\nINIT=$result_init\nPLAN=$result_plan\nIt's NOT OK, will hard fail."
