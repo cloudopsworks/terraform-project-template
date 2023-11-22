@@ -13,10 +13,13 @@ on:
       - support/**
       - release/**
     paths-ignore:
-      - .github/workflows/**
+#      - .github/workflows/**
       - modules/**
 
-concurrency: plan-${{ github.repository }}
+concurrency:
+  group: plan-${{ github.repository }}
+  cancel-in-progress: false
+
 
 permissions:
   contents: read
@@ -31,6 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       auto_approve: ${{ steps.check_automatic.outputs.result }}
+      is_release: ${{ steps.workspace.outputs.isRelease }}
     steps:
       - uses: actions/labeler@v4
         with:
@@ -291,7 +295,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ needs.plan.outputs.auto_approve == 'true' && github.event_name == 'pull_request' }}
+    if: ${{ github.head_ref != 'master' && github.head_ref != 'main' && ! github.head_ref.startsWith('support') && github.event_name == 'pull_request' }}
     steps:
       - uses: actions/github-script@v6
         with:
@@ -309,7 +313,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ needs.plan.outputs.auto_approve != 'true' && github.event_name == 'pull_request' }}
+    if: ${{ ( github.head_ref == 'master' || github.head_ref == 'main' || github.head_ref.startsWith('support') ) && github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -365,7 +369,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ needs.plan.outputs.auto_approve != 'true' && github.event_name == 'pull_request' }}
+    if: ${{ ( github.head_ref == 'master' || github.head_ref == 'main' || github.head_ref.startsWith('support') ) && github.event_name == 'pull_request' }}
     outputs:
       is_mergeable: ${{ steps.check.outputs.result }}
     steps:

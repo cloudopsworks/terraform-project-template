@@ -17,8 +17,9 @@ on:
       - .github/workflows/**
       - modules/**
 
-concurrency: deploy-${{ github.repository }}
-
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
