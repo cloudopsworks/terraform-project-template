@@ -17,7 +17,7 @@ on:
       - .github/workflows/**
       - modules/**
 
-concurrency: deploy-${{ github.repository }}-${{ github.ref }}
+concurrency: deploy-${{ github.repository }}
 
 
 jobs:

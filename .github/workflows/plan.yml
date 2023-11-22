@@ -16,7 +16,7 @@ on:
       - .github/workflows/**
       - modules/**
 
-concurrency: plan-${{ github.repository }}-${{ github.ref }}
+concurrency: plan-${{ github.repository }}
 
 permissions:
   contents: read
@@ -309,34 +309,33 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ needs.plan.outputs.auto_approve != 'true' && needs.bluegreen.outputs.action != 'approved' && github.event_name == 'pull_request' }}
+    if: ${{ needs.plan.outputs.auto_approve != 'true' && github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.BOT_TOKEN }}
 
-      - name: Read reviewers from file
-        id: reviewers
-        run: |
-          count=$(yq e '.requiredReviewers' OWNERS)
-          reviewers_as_json=$(yq e -j -I=0 '.reviewers' OWNERS)
-          echo "count=$count" >> $GITHUB_OUTPUT
-          echo "as_json=$reviewers_as_json" >> $GITHUB_OUTPUT
+      - name: Read required Reviewers from config file
+        id: reviewers_count
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '.config.requiredReviewers' ./cloudopsworks-ci.yaml
+
+      - name: Read all reviewers from config file
+        id: reviewers_json
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -o=json -I=0 '.config.reviewers' ./cloudopsworks-ci.yaml
 
       - name: Add review and approval labels
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.BOT_TOKEN}}
           script: |
-            const reviewers_json=JSON.parse('${{ steps.reviewers.outputs.as_json }}');
-            const reviewers_count=${{ steps.reviewers.outputs.count }};
-            const label='${{ needs.bluegreen.outputs.label }}';
-            const nextlabel='${{ needs.bluegreen.outputs.nextlabel }}';
+            const reviewers_json=JSON.parse('${{ steps.reviewers_json.outputs.result }}');
+            const reviewers_count=${{ steps.reviewers_count.outputs.result }};
             const labels = ['approval-required','review-required'];
             const actor = '${{ github.event.pull_request.user.login }}'
-
-            if ( nextlabel != '' )
-              labels.push(nextlabel)
 
             var reviewers = []
             for ( const rev of reviewers_json ) {
@@ -366,7 +365,7 @@ jobs:
     needs:
       - plan
     runs-on: ubuntu-latest
-    if: ${{ needs.plan.outputs.auto_approve != 'true' && needs.bluegreen.outputs.action != 'approved' && github.event_name == 'pull_request' }}
+    if: ${{ needs.plan.outputs.auto_approve != 'true' && github.event_name == 'pull_request' }}
     outputs:
       is_mergeable: ${{ steps.check.outputs.result }}
     steps:
