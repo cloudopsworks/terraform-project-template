@@ -5,6 +5,7 @@
 name: Terraform Project Deploy
 on:
   workflow_dispatch:
+  create:
 
   push:
     tags:
@@ -22,7 +23,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prevalidate:
+    if: ${{ startsWith(github.ref,'refs/heads/release/') || startsWith(github.ref,'refs/heads/develop') || startsWith(github.ref,'refs/heads/support/') || startsWith(github.ref,'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      # Get the owner repo
+      - name: Get owner
+        id: getowner
+        run: |
+          repo_owner=`echo "$GITHUB_REPOSITORY" | cut -f 1 -d "/"`
+          repo_name=`echo "$GITHUB_REPOSITORY" | cut -f 2 -d "/"`
+          echo "owner=$repo_owner" >> $GITHUB_OUTPUT
+          echo "repo_name=$repo_name" >> $GITHUB_OUTPUT
+
   deploy:
+    needs:
+      - prevalidate
     runs-on: ubuntu-latest
     steps:
       # Get the owner repo
