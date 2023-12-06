@@ -465,7 +465,7 @@ jobs:
       - name: Advanced Deployment Environments Creation
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.token }}
+          github-token: ${{ secrets.BOT_TOKEN }}
           script: |
             const deployments = JSON.parse('${{ steps.deployments_json.outputs.result }}');
             
