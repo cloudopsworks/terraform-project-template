@@ -17,7 +17,7 @@ on:
       - modules/**
 
 concurrency:
-  group: plan-${{ github.repository }}
+  group: plan-deploy-${{ github.repository }}
   cancel-in-progress: false
 
 
