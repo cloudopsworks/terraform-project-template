@@ -11,7 +11,7 @@ Terraform Project Build Automation Template
 * Usually will be declared on _*cloudopsworks-ci.yaml*_
 * You will need access to the SSM Parameter Store to r etrieve the object.
 ```shell
-aws-vault exec <profile> -- aws ssm get-parameterskube \
+aws-vault exec <profile> -- aws ssm get-parameters \
   --names "<ssm parameter>" --query "Parameters[0].Value" \
   --output text > /tmp/remote.tfbackend
 ```
