@@ -181,6 +181,7 @@ jobs:
 
       - name: Terraform Workspace Check and Selection
         id: workspace_check
+        continue-on-error: true
         run: |
           terraform workspace select ${{ steps.workspace.outputs.workspace }}
         env:
