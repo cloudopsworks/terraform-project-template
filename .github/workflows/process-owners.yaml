@@ -9,6 +9,7 @@ on:
     branches:
       - master
       - main
+      - develop
     paths:
       - OWNERS
       - .github/cloudopsworks-ci.yaml
